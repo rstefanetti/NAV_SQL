@@ -1,0 +1,118 @@
+/****** RS START COMMENTS ******/ 
+/****** Object:  StoredProcedure [dbo].[CopyTable]    Script Date: 10/09/2015 09:21:45  - TSQL Script  ******/ 
+/****** SQL "INSERT INTO" DYNAMIC CONSTRUCTOR - Dynamic SQL "INSERT INTO" STATEMENT for NAV Data Migration ******/ 
+/****** If you have some OLD NAV Release and you want to copy FAST DATA from db\Company to another DB\Company ******/ 
+/****** .....you can use SQL INSERT INTO STATEMENT... ******/ 
+/****** RS END COMMENTS ******/ 
+
+/****** “CopyTable” Stored Procedure START ******/ 
+USE [DB_SQL] 
+GO 
+
+SET ANSI_NULLS ON 
+GO 
+SET QUOTED_IDENTIFIER ON 
+GO 
+ 
+CREATE PROCEDURE [dbo].[CopyTable] 
+    -- Input parameters 
+    @inputSourceDatabase varchar(100), 
+    @inputDestDatabase varchar(100), 
+    @inputSourceTableName varchar(100), 
+    @inputDestTableName varchar(100) 
+AS 
+BEGIN 
+    -- SET NOCOUNT ON added to prevent extra result sets from 
+    -- interfering with SELECT statements. 
+    SET NOCOUNT ON; 
+ 
+-- Declare the variables to store the values returned by FETCH. 
+DECLARE      @column_name varchar(100),  
+             @table_catalog varchar(100), 
+             @table_schema varchar(100), 
+             @table_name varchar(100), 
+             @column_name_2 varchar(100),  
+             @table_catalog_2 varchar(100), 
+             @table_schema_2 varchar(100), 
+             @table_name_2 varchar(100), 
+             @ResultScript varchar(max), 
+             @tempTable_name varchar(100), 
+             @EndResultScript varchar(max), 
+             @StartResultScript varchar(max), 
+             @TotalResultScript varchar(max) 
+ 
+DECLARE Table_cursor CURSOR FOR 
+Select [TABLE_CATALOG],[TABLE_SCHEMA],[TABLE_NAME],[COLUMN_NAME] from information_schema.columns 
+       where  
+       --table_name = 'Planet s_r_l_$ZZTEST_TABLE' AND  
+       table_name = @inputSourceTableName AND 
+       column_name <> 'timestamp' AND 
+       TABLE_CATALOG = @inputSourceDatabase 
+OPEN Table_cursor; 
+ 
+ 
+SET @StartResultScript = '' 
+SET @EndResultScript = '' 
+ 
+FETCH NEXT FROM Table_cursor 
+INTO @table_catalog,@table_schema,@table_name,@column_name; 
+ 
+-- Check @@FETCH_STATUS to see if there are any more rows to fetch. 
+WHILE @@FETCH_STATUS = 0 
+BEGIN                  
+   SET @ResultScript = CONCAT(@ResultScript,'[',@column_name,'],')    
+   FETCH NEXT FROM Table_cursor 
+   INTO @table_catalog,@table_schema,@table_name,@column_name; 
+END 
+--Creo Parte finale della stringa di esecuzione. 
+SET @ResultScript = LEFT(@ResultScript,LEN(@ResultScript)-1) 
+SET @EndResultScript =CONCAT(') SELECT ',@ResultScript, ' FROM [', @inputSourceTableName,']') 
+CLOSE Table_cursor; 
+DEALLOCATE Table_cursor; 
+ 
+--Final String building (CONCAT) 
+SET @StartResultScript = CONCAT('INSERT INTO [',@inputDestDatabase,'].[dbo].[',@inputDestTableName,'](') 
+SET @TotalResultScript = CONCAT(@StartResultScript,@ResultScript,@EndResultScript) 
+ 
+--Verbose Mode  
+PRINT @TotalResultScript 
+ 
+--Execution Statement 
+INSERT INTO [Tables Migration Config] ([Source Database],[Dest Database],[Source Table Name],[Dest Table Name], [Exec Script]) 
+values (@inputSourceDatabase, 
+    @inputDestDatabase , 
+    @inputSourceTableName , 
+    @inputDestTableName, 
+    @TotalResultScript) 
+END 
+ 
+2) Create new table "Tables Migration Config" 
+
+/****** Object:  Table [dbo].[Tables Migration Config]    Script Date: 10/09/2015 09:20:05 ******/ 
+SET ANSI_NULLS ON 
+GO 
+ 
+SET QUOTED_IDENTIFIER ON 
+GO 
+ 
+SET ANSI_PADDING ON 
+GO 
+ 
+CREATE TABLE [dbo].[Tables Migration Config]( 
+    [timestamp] [timestamp] NOT NULL, 
+    [Source Database] [varchar](50) NOT NULL, 
+    [Dest Database] [varchar](50) NOT NULL, 
+    [Source Table Name] [varchar](100) NOT NULL, 
+    [Dest Table Name] [varchar](100) NOT NULL, 
+    [Exec Script] [varchar](max) NOT NULL, 
+ CONSTRAINT [Table Fields Name$0] PRIMARY KEY CLUSTERED  
+( 
+    [timestamp] ASC 
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [Data Filegroup 1] 
+) ON [Data Filegroup 1] TEXTIMAGE_ON [Data Filegroup 1] 
+ 
+GO 
+ 
+SET ANSI_PADDING OFF 
+GO 
+/****** “CopyTable” Stored Procedure END ******/ 

@@ -1,0 +1,187 @@
+-main functions 
+ 
+-setMail(string parfrom, string parto, string parcc, string parsubject, string partextmessage, string parpathattach, string parpathtemplate) 
+ 
+-sendMail() 
+ 
+ 
+------------------------------------------------ 
+-- ALL SCRIPT-------------------------------- 
+using System; 
+using System.Collections.Generic; 
+using System.Linq; 
+using System.Text; 
+using System.Runtime.InteropServices; 
+using System.IO; 
+using System.Collections; 
+using System.Net.Mail; 
+using System.Web; 
+using System.Net.Mime; 
+ 
+namespace MailComponent 
+{ 
+    [ComVisible(true)] 
+    [Guid("41E646B3-F65C-4d8e-8539-499FA56C7075")] 
+    [ProgId("MailComponent")]  
+    [ClassInterface(ClassInterfaceType.AutoDual)]  
+ 
+    public class HTMLMail 
+    { 
+        MailMessage mail; 
+        string a_server; 
+        string a_user; 
+        string a_pass; 
+        bool a_enablessl; 
+ 
+        public Int16 setAccount(string l_server, string l_user, string l_pass,bool l_enablessl) 
+        { 
+            a_server = l_server; 
+            a_user = l_user; 
+            a_pass = l_pass; 
+            a_enablessl = l_enablessl; 
+            return 1; 
+        } 
+        public Int16 setMail(string parfrom, string parto, string parcc, string parsubject, string partextmessage, string parpathattach, string parpathtemplate) 
+        { 
+            try 
+            { 
+                //create the mail messageMail 
+                mail = new MailMessage(); 
+ 
+                //set the addresses 
+                try 
+                { 
+                    mail.From = new MailAddress(parfrom); 
+                } 
+                catch (Exception) 
+                { 
+                    return -1; 
+                } 
+ 
+                try 
+                { 
+                    //mail.To.Add(new MailAddress(parto)); 
+                    MailAddressCollection mailAddColl = new MailAddressCollection(); 
+                    mailAddColl.Add(parto); 
+                    for (int i = 0; i < mailAddColl.Count; i++) 
+                        mail.To.Add(new MailAddress(mailAddColl[i].ToString())); 
+                } 
+                catch (Exception) 
+                { 
+                    return -2; 
+                } 
+ 
+                try 
+                { 
+                    if (parcc.CompareTo("") != 0) 
+                    { 
+                        //mail.CC.Add(new MailAddress(parcc)); 
+                        MailAddressCollection mailAddColl = new MailAddressCollection(); 
+                        mailAddColl.Add(parcc); 
+                        for (int i = 0; i < mailAddColl.Count; i++) 
+                            mail.CC.Add(new MailAddress(mailAddColl[i].ToString())); 
+                    } 
+                } 
+                catch (Exception) 
+                { 
+                    return -3; 
+                } 
+ 
+                //set the content 
+                mail.Subject = parsubject; 
+                mail.IsBodyHtml = true; 
+ 
+                //create the LinkedResource (embedded image) 
+                List<LinkedResource> imagelist = new List<LinkedResource>(); 
+ 
+                //create the view 
+                //AlternateView plainView = AlternateView.CreateAlternateViewFromString("This is my text , viewable by those clients that don't support html", null, "text/plain"); 
+                string htmlstring; 
+                try 
+                { 
+                    StreamReader reader = new StreamReader(Path.Combine(parpathtemplate, @"template.html")); 
+                    htmlstring = reader.ReadToEnd(); 
+                } 
+                catch (Exception) 
+                { 
+                    return -4; 
+                } 
+ 
+                bool flag = true; 
+                int index = 0; 
+                int position; 
+                string estensione; 
+                do 
+                { 
+                    position = htmlstring.IndexOf(string.Format("src=embimage{0}", index + 1)); 
+                    if (position > 0) 
+                    { 
+                        estensione = htmlstring.Substring(position + 14, 3); 
+                        htmlstring = htmlstring.Remove(position + 13, 4); 
+                        htmlstring = htmlstring.Replace( 
+                                           (string.Format("src=embimage{0}", index + 1)), 
+                                           (string.Format("src=cid:embimage{0}", index + 1)) 
+                                           ); 
+                        imagelist.Add(new LinkedResource((string.Format("{0}\\embimage{1}.{2}", parpathtemplate, index + 1, estensione)), 
+                                                          System.Net.Mime.MediaTypeNames.Image.Jpeg)); 
+                        imagelist[index].ContentId = string.Format("embimage{0}", index + 1); 
+                    } 
+                    else 
+                        flag = false; 
+                    index++; 
+                } while (flag); 
+ 
+                //temporanea = new LinkedResource(pathtemplate, System.Net.Mime.MediaTypeNames.Image.Jpeg); 
+                //temporanea.ContentId = string.Format("embimage{0}", index + 1); 
+                //string htmlstring = string.Format("<html><body><img src=cid:logoaltea><br><br>{0}</body></html>", textmessage); 
+                string textmessage1 = string.Format(htmlstring, partextmessage); 
+                AlternateView htmlView = AlternateView.CreateAlternateViewFromString(textmessage1, null, System.Net.Mime.MediaTypeNames.Text.Html); 
+ 
+                //add the LinkedResource to the appropriate view 
+                //htmlView.LinkedResources.Add(logo); 
+                for (int i = 0; i < imagelist.Count; i++) 
+                { 
+                    htmlView.LinkedResources.Add(imagelist[i]); 
+                } 
+ 
+                //attachment 
+                try 
+                { 
+                    Attachment attachFile = new Attachment(parpathattach.Replace(@"\", @"\\")); 
+                    mail.Attachments.Add(attachFile); 
+                } 
+                catch (Exception) 
+                { 
+                    return -5; 
+                } 
+ 
+                //add the views 
+                mail.AlternateViews.Add(htmlView); 
+                return 1; 
+            } 
+            catch (Exception) 
+            { 
+                 
+                return -6; 
+            } 
+        } 
+        public Int16 sendMail() 
+        { 
+            try 
+            { 
+                //send the message 
+                SmtpClient smtp = new SmtpClient(a_server); 
+                if (a_enablessl) 
+                  smtp.EnableSsl = true; 
+                smtp.Credentials = new System.Net.NetworkCredential(a_user, a_pass); 
+                smtp.Send(mail); 
+                return 1; 
+            } 
+            catch (Exception) 
+            { 
+                return -1; 
+            } 
+         } 
+ 
+    } 
+} 

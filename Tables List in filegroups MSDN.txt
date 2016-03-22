@@ -1,0 +1,8 @@
+-- Elenco tabelle presenti nei Filegroups 
+-- Tables List on Filegroups 
+ 
+SELECT CONVERT(VARCHAR(30), OBJECT_NAME(s.id)) Tabella, fg.groupname 
+FROM sysindexes s INNER JOIN sysfilegroups fg 
+ON s.groupid = fg.groupid 
+WHERE s.id > 100 
+AND s.indid < 2 ORDER BY fg.groupname

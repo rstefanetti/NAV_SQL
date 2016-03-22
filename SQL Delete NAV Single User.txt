@@ -1,0 +1,41 @@
+"HOW TO RESET" NAV SINGLE USER
+If you have some issues with NAV single user, you can delete ALL user configuration and after recreate a new user
+follow this procedure:
+
+1) FIRST: SELECT [User Security ID] from USERNAME
+use DB
+GO
+
+retrieve User Security ID (User ID by uniqueidentifier)
+select [User Security ID] from [dbo].[User] where [User Name] = 'DOMAIN\USER1' 
+    --> example: User Security ID output:  49089BA8-91C5-4BD2-A322-7797760736B2  (User ID by uniqueidentifier)
+
+2) SECOND: DELETE using [USer Security ID] extrected from user name
+delete [dbo].[Access Control] where [User Security ID] = N'49089BA8-91C5-4BD2-A322-7797760736B2'
+delete [dbo].[Page Data Personalization]  where [User SID] = N'49089BA8-91C5-4BD2-A322-7797760736B2'
+delete [dbo].[User Metadata]  where [User SID] = N'49089BA8-91C5-4BD2-A322-7797760736B2'
+delete [dbo].[User Property] where [User Security ID] = N'49089BA8-91C5-4BD2-A322-7797760736B2'
+delete [dbo].[User Personalization] where [User SID] = N'49089BA8-91C5-4BD2-A322-7797760736B2'
+delete [dbo].[User Default Style Sheet] where [User ID] = N'49089BA8-91C5-4BD2-A322-7797760736B2'
+GO
+
+NB: STOP NAV SERVICE BEFORE DELETING from SQL !!/
+
+STOP NAV SERVER Service (you can't delete users from SQL with NAV server active- "USER" table is locked)
+
+3) LAST: delete user (and after recreate form NAV)
+delete [dbo].[User] where [User Name] = 'DOMAIN\USER1' 
+GO
+
+** If you have NAV pending services, use KIll service script below:
+KILLING PROCEDURE
+
+Kill Service Script
+sc queryex MicrosoftDynamicsNavServer$ITA
+  result --> Service Name 
+             Process ID : PID 10484
+
+taskkill /PID 10484 /F
+  result --> process killed
+
+Have a nice day !

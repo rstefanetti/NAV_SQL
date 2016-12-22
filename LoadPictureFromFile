@@ -1,0 +1,44 @@
+On Image Button of Item Card
+
+// CHECK DATA IN RECORDLINK TABLE
+RecordLink.RESET;
+RecordLink.SETCURRENTKEY(Company,"Refer to");
+RecordLink.SETRANGE(Company,COMPANYNAME);
+RecordLink.SETRANGE("Refer to","No.");
+IF NOT RecordLink.FINDSET THEN EXIT;
+
+FileToUpload := RecordLink.URL4;   //Custom field with link for image 
+//example of link: 
+IF FileToUpload = '' THEN EXIT;
+
+//IMPORT IMAGE FROM FILE USING FILE MANAGEMENT
+FileManagement.BLOBImportFromServerFile(recTempBlob,FileManagement.UploadFileSilent(FileToUpload)); 
+
+ItemPicture.RESET;
+ItemPicture.SETRANGE("No.","No.");
+
+IF ItemPicture.FINDSET THEN BEGIN
+   ItemPicture.Picture := recTempBlob.Blob;
+   ItemPicture.MODIFY;
+   ItemPicture.RESET;
+   ItemPicture.SETRANGE("No.","No.");
+   
+   //OPEN PAGE 346 Item Picture > Visulize Item Image
+   PagePicture.SETTABLEVIEW(ItemPicture);
+   PagePicture.RUN;
+END;
+
+
+//Image Cleaning
+Page 346 Item Picture
+OnClosePage()
+itemPicture.RESET;
+itemPicture.SETRANGE("No.","No.");
+
+IF itemPicture.FINDSET THEN BEGIN
+   IF itemPicture.Picture.HASVALUE THEN BEGIN
+      itemPicture.CALCFIELDS(Picture);
+      CLEAR(itemPicture.Picture);
+      itemPicture.MODIFY;
+   END;
+END;

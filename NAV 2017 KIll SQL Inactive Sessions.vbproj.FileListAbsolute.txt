@@ -1,0 +1,28 @@
+c:\users\rstefanetti\documents\visual studio 2013\Projects\NAV 2017 KIll SQL Inactive Sessions\NAV 2017 KIll SQL Inactive Sessions\bin\Debug\NAV 2017 KIll SQL Inactive Sessions.exe.config
+c:\users\rstefanetti\documents\visual studio 2013\Projects\NAV 2017 KIll SQL Inactive Sessions\NAV 2017 KIll SQL Inactive Sessions\bin\Debug\NAV 2017 KIll SQL Inactive Sessions.exe
+c:\users\rstefanetti\documents\visual studio 2013\Projects\NAV 2017 KIll SQL Inactive Sessions\NAV 2017 KIll SQL Inactive Sessions\bin\Debug\NAV 2017 KIll SQL Inactive Sessions.pdb
+c:\users\rstefanetti\documents\visual studio 2013\Projects\NAV 2017 KIll SQL Inactive Sessions\NAV 2017 KIll SQL Inactive Sessions\bin\Debug\NAV 2017 KIll SQL Inactive Sessions.xml
+c:\users\rstefanetti\documents\visual studio 2013\Projects\NAV 2017 KIll SQL Inactive Sessions\NAV 2017 KIll SQL Inactive Sessions\obj\Debug\NAV_2017_KIll_SQL_Inactive_Sessions.Resources.resources
+c:\users\rstefanetti\documents\visual studio 2013\Projects\NAV 2017 KIll SQL Inactive Sessions\NAV 2017 KIll SQL Inactive Sessions\obj\Debug\NAV 2017 KIll SQL Inactive Sessions.vbproj.GenerateResource.Cache
+c:\users\rstefanetti\documents\visual studio 2013\Projects\NAV 2017 KIll SQL Inactive Sessions\NAV 2017 KIll SQL Inactive Sessions\obj\Debug\NAV 2017 KIll SQL Inactive Sessions.exe
+c:\users\rstefanetti\documents\visual studio 2013\Projects\NAV 2017 KIll SQL Inactive Sessions\NAV 2017 KIll SQL Inactive Sessions\obj\Debug\NAV 2017 KIll SQL Inactive Sessions.xml
+c:\users\rstefanetti\documents\visual studio 2013\Projects\NAV 2017 KIll SQL Inactive Sessions\NAV 2017 KIll SQL Inactive Sessions\obj\Debug\NAV 2017 KIll SQL Inactive Sessions.pdb
+c:\users\rstefanetti\documents\visual studio 2013\Projects\NAV 2017 KIll SQL Inactive Sessions\NAV 2017 KIll SQL Inactive Sessions\obj\Debug\NAV_2017_KIll_SQL_Inactive_Sessions.ActiveSessionList.resources
+c:\users\rstefanetti\documents\visual studio 2013\Projects\NAV 2017 KIll SQL Inactive Sessions\NAV 2017 KIll SQL Inactive Sessions\bin\Debug\NAV 2017 KIll SQL Inactive Sessions.exe.manifest
+c:\users\rstefanetti\documents\visual studio 2013\Projects\NAV 2017 KIll SQL Inactive Sessions\NAV 2017 KIll SQL Inactive Sessions\bin\Debug\NAV 2017 KIll SQL Inactive Sessions.application
+c:\users\rstefanetti\documents\visual studio 2013\Projects\NAV 2017 KIll SQL Inactive Sessions\NAV 2017 KIll SQL Inactive Sessions\obj\Debug\NAV 2017 KIll SQL Inactive Sessions.exe.manifest
+c:\users\rstefanetti\documents\visual studio 2013\Projects\NAV 2017 KIll SQL Inactive Sessions\NAV 2017 KIll SQL Inactive Sessions\obj\Debug\NAV 2017 KIll SQL Inactive Sessions.application
+C:\NAV 2017\KILL Sessions\bin\Debug\NAV 2017 KIll SQL Inactive Sessions.exe.config
+C:\NAV 2017\KILL Sessions\obj\Debug\NAV 2017 KIll SQL Inactive Sessions.exe
+C:\NAV 2017\KILL Sessions\obj\Debug\NAV 2017 KIll SQL Inactive Sessions.xml
+C:\NAV 2017\KILL Sessions\obj\Debug\NAV 2017 KIll SQL Inactive Sessions.pdb
+C:\NAV 2017\KILL Sessions\bin\Debug\NAV 2017 KIll SQL Inactive Sessions.exe.manifest
+C:\NAV 2017\KILL Sessions\bin\Debug\NAV 2017 KIll SQL Inactive Sessions.application
+C:\NAV 2017\KILL Sessions\bin\Debug\NAV 2017 KIll SQL Inactive Sessions.exe
+C:\NAV 2017\KILL Sessions\bin\Debug\NAV 2017 KIll SQL Inactive Sessions.pdb
+C:\NAV 2017\KILL Sessions\bin\Debug\NAV 2017 KIll SQL Inactive Sessions.xml
+C:\NAV 2017\KILL Sessions\obj\Debug\NAV_2017_KIll_SQL_Inactive_Sessions.ActiveSessionList.resources
+C:\NAV 2017\KILL Sessions\obj\Debug\NAV_2017_KIll_SQL_Inactive_Sessions.Resources.resources
+C:\NAV 2017\KILL Sessions\obj\Debug\NAV 2017 KIll SQL Inactive Sessions.vbproj.GenerateResource.Cache
+C:\NAV 2017\KILL Sessions\obj\Debug\NAV 2017 KIll SQL Inactive Sessions.exe.manifest
+C:\NAV 2017\KILL Sessions\obj\Debug\NAV 2017 KIll SQL Inactive Sessions.application

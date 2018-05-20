@@ -1,0 +1,156 @@
+On-Demand NAS Codeunits Scheduling - Dynamics NAV 2016
+
+OBJECT Page 50001 Schedule a Codeunit 
+{ 
+  OBJECT-PROPERTIES 
+  { 
+    Date=12/05/16; 
+    Time=15.33.16; 
+    Modified=Yes; 
+    Version List=NAVW19.00,RS; 
+  } 
+  PROPERTIES 
+  { 
+    CaptionML=[ENU=Schedule a Codeunit; 
+               ITA=Programma una codeunit]; 
+    InsertAllowed=No; 
+    DeleteAllowed=No; 
+    SourceTable=Table472; 
+    DataCaptionExpr=Description; 
+    PageType=StandardDialog; 
+    SourceTableTemporary=Yes; 
+    OnOpenPage=VAR 
+                 JobQueueEnqueue@1000 : Codeunit 453; 
+               BEGIN 
+                 IF NOT FINDFIRST THEN BEGIN 
+                   INIT; 
+                   ReportEditable := TRUE; 
+                   OutPutEditable := TRUE; 
+                   Status := Status::"On Hold"; 
+                   VALIDATE("Object Type to Run","Object Type to Run"::Codeunit); 
+                   INSERT(TRUE); 
+                 END ; 
+ 
+ 
+                 IF NOT JobQueueEnqueue.JobQueueIsRunning('') THEN 
+                   WarningMsg := NoRunningJobQueueMsg; 
+               END; 
+ 
+    OnQueryClosePage=VAR 
+                       JobQueueEntry@1000 : Record 472; 
+                     BEGIN 
+                       IF CloseAction <> ACTION::OK THEN 
+                         EXIT(TRUE); 
+ 
+                       IF "Object ID to Run" = 0 THEN BEGIN 
+                         MESSAGE(NoIdMsg); 
+                         EXIT(FALSE); 
+                       END; 
+ 
+                       CALCFIELDS(XML); 
+                       JobQueueEntry := Rec; 
+                       JobQueueEntry."Run in User Session" := TRUE; //run in user Session 
+                       IF JobQueueEntry.Description = '' THEN 
+                         JobQueueEntry.Description := COPYSTR("Object Caption to Run",1,MAXSTRLEN(JobQueueEntry.Description)); 
+                       CODEUNIT.RUN(CODEUNIT::"Job Queue - Enqueue",JobQueueEntry); 
+                       EXIT(TRUE); 
+                     END; 
+ 
+  } 
+  CONTROLS 
+  { 
+    { 1   ;0   ;Container ; 
+                ContainerType=ContentArea } 
+ 
+    { 12  ;1   ;Field     ; 
+                Width=100; 
+                SourceExpr=WarningMsg; 
+                Visible=WarningMsg <> ''; 
+                Enabled=FALSE; 
+                Style=Attention; 
+                StyleExpr=TRUE; 
+                ShowCaption=No } 
+ 
+    { 3   ;1   ;Field     ; 
+                CaptionML=[ENU=Codeunit ID; 
+                           ITA=ID Codeunit]; 
+                SourceExpr="Object ID to Run"; 
+                Editable=ReportEditable; 
+                OnLookup=VAR 
+                           NewObjectID@1000 : Integer; 
+                         BEGIN 
+                           IF LookupObjectID(NewObjectID) THEN BEGIN 
+                             Text := FORMAT(NewObjectID); 
+                             EXIT(TRUE); 
+                           END; 
+                           EXIT(FALSE); 
+                         END; 
+                          } 
+ 
+    { 4   ;1   ;Field     ; 
+                CaptionML=[ENU=Report Name; 
+                           ITA=Nome codeunit]; 
+                SourceExpr="Object Caption to Run"; 
+                Enabled=FALSE } 
+ 
+    { 10  ;1   ;Field     ; 
+                SourceExpr=Description } 
+ 
+    { 5   ;1   ;Field     ; 
+                SourceExpr="Report Request Page Options"; 
+                Visible=FALSE } 
+ 
+    { 6   ;1   ;Field     ; 
+                SourceExpr="Report Output Type"; 
+                Visible=FALSE; 
+                Enabled=OutPutEditable } 
+ 
+    { 7   ;1   ;Field     ; 
+                SourceExpr="Printer Name"; 
+                Importance=Additional; 
+                Visible=FALSE; 
+                Enabled="Report Output Type" = "Report Output Type"::Print } 
+ 
+    { 8   ;1   ;Field     ; 
+                SourceExpr="Earliest Start Date/Time"; 
+                Importance=Additional } 
+ 
+    { 9   ;1   ;Field     ; 
+                SourceExpr="Expiration Date/Time"; 
+                Importance=Additional } 
+ 
+  } 
+  CODE 
+  { 
+    VAR 
+      NoIdMsg@1000 : TextConst 'ENU=You must specify a report number.;ITA=Specificare un numero di report.'; 
+      ReportEditable@1001 : Boolean; 
+      OutPutEditable@1002 : Boolean; 
+      WarningMsg@1003 : Text; 
+      NoRunningJobQueueMsg@1004 : TextConst 'ENU=There is no running job queue for scheduled reports.;ITA=Nessuna coda processi in esecuzione per i report programmati.'; 
+ 
+    PROCEDURE ScheduleACodeunit@1(CodeunitId@1000 : Integer;RequestPageXml@1001 : Text) : Boolean; 
+    VAR 
+      ScheduleACodeunit@1002 : Page 50001; 
+    BEGIN 
+      ScheduleACodeunit.SetParameters(CodeunitId,RequestPageXml); 
+      EXIT(ScheduleACodeunit.RUNMODAL = ACTION::OK); 
+    END; 
+ 
+    PROCEDURE SetParameters@2(ReportId@1000 : Integer;RequestPageXml@1001 : Text); 
+    BEGIN 
+      INIT; 
+      Status := Status::"On Hold"; 
+      VALIDATE("Object Type to Run","Object Type to Run"::Codeunit); 
+      VALIDATE("Object ID to Run",ReportId); 
+      INSERT(TRUE); 
+    END; 
+ 
+    BEGIN 
+    END. 
+  } 
+} 
+
+
+link
+https://gallery.technet.microsoft.com/On-Demand-NAS-Codeunits-654509e7/view/Reviews

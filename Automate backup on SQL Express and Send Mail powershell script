@@ -1,0 +1,22 @@
+Automate backup on SQL Express and Send Mail powershell script
+
+Backup Automation 
+Solution to automate backup on SQL Express and send mail based on first Microsoft SQL Backup Script "sp_SQLBackupDatabases" 
+ 
+Scheduling 
+NB: SQL Server Agent "is not available" on this SQL release 
+You can schedule jobs with standard “Windows Jobs“ ! 
+ 
+How System Works: 
+3 Objectsd based procedure: 
+1) batch file > SQL-Backup.bat (Execute ALL Procedure) 
+2) backup procedure > SP_SQLBackupDatabase.sql (original Microsoft SQL Backup Script) 
+3) Send mail > Send-email.ps1 (a send email routine based on Powershell Script) 
+ 
+Example: 
+sqlcmd -U sa -P xxxx -S .\SQL2012EXPRESS -Q “EXEC sp_SQLBackupDatabases @backupLocation = ‘C:\SQLBackups\’, @backupType = ‘F'” 
+ 
+Original Microsoft Solution: https://support.microsoft.com/en-us/kb/2019698
+
+
+link https://gallery.technet.microsoft.com/Automate-backup-on-SQL-21eb452d

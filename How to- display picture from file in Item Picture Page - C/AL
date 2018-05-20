@@ -1,0 +1,43 @@
+“How to” display picture from file in Item Picture Page - Dynamics NAV  - C/AL
+
+Below a short procedure to visualize a linked picture from a picture file (example file with “.GIF” extension) into the “Item Picture Page”.
+The System load the image file in a BLOB field and after displays it on the picture page; at the close of the page the image is deleted from the item table in order to lighten the System; same procedure can be used in reports and can also be used in old versions of NAV… in this case NAV 2013.  
+ 
+// CHECK DATA IN RECORDLINK TABLE
+RecordLink.RESET;
+RecordLink.SETCURRENTKEY(Company,"Refer to");
+RecordLink.SETRANGE(Company,COMPANYNAME);
+RecordLink.SETRANGE("Refer to","No.");
+IF NOT RecordLink.FINDSET THEN EXIT;
+FileToUpload := RecordLink.URL4;   //Custom field with link for image 
+IF FileToUpload = '' THEN EXIT;
+
+FileManagement.BLOBImportFromServerFile(recTempBlob,FileManagement.UploadFileSilent(FileToUpload));
+//IMPORT IMAGE FROM FILE USING FILE MANAGEMENT
+ItemPicture.RESET;
+ItemPicture.SETRANGE("No.","No.");
+IF ItemPicture.FINDSET THEN BEGIN
+   ItemPicture.Picture := recTempBlob.Blob;
+   ItemPicture.MODIFY;
+   ItemPicture.RESET;
+   ItemPicture.SETRANGE("No.","No.");
+
+   //OPEN PAGE 346 Item Picture > Visulize Item Image
+   PagePicture.SETTABLEVIEW(ItemPicture);
+   PagePicture.RUN;
+END;
+
+//Image Cleaning
+Page 346 Item Picture
+OnClosePage()
+itemPicture.RESET;
+itemPicture.SETRANGE("No.","No.");
+IF itemPicture.FINDSET THEN BEGIN
+   IF itemPicture.Picture.HASVALUE THEN BEGIN
+      itemPicture.CALCFIELDS(Picture);
+      CLEAR(itemPicture.Picture);
+      itemPicture.MODIFY;
+   END;
+END;
+
+link https://gallery.technet.microsoft.com/How-to-display-picture-f13019bb

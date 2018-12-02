@@ -1,4 +1,4 @@
-OBJECT Report 18032476 Undo Subcontracting Receipts
+OBJECT Report 50001 Undo Subcontracting Receipts
 {
   OBJECT-PROPERTIES
   {

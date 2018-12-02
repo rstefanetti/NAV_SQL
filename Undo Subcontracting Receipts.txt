@@ -1,0 +1,549 @@
+OBJECT Report 18032476 Undo Subcontracting Receipts
+{
+  OBJECT-PROPERTIES
+  {
+    Date=02/12/18;
+    Time=08:33:38;
+    Modified=Yes;
+    Version List=RS;
+  }
+  PROPERTIES
+  {
+    Permissions=TableData 120=rimd,
+                TableData 121=rimd,
+                TableData 5406=rimd,
+                TableData 5832=rimd;
+    CaptionML=[ENU=Undo Subcontracting Receipts;
+               ITA=Storno Ricevimenti Conto Lavorazione];
+    ProcessingOnly=Yes;
+    OnPreReport=BEGIN
+                  //#Check Variables
+                  IF NOT CONFIRM(cText003) THEN
+                      ERROR(cText004);
+
+                  //Check Variables
+                  IF ProdOrder = '' THEN ERROR(cText005);
+                  IF DeleteDate = 0D THEN ERROR(cText006);
+                  IF SubcontractorOrder = '' THEN ERROR(cText007);
+                END;
+
+  }
+  DATASET
+  {
+    { 1101340000;;DataItem;OutputEntry       ;
+               DataItemTable=Table5832;
+               DataItemTableView=SORTING(Entry No.)
+                                 ORDER(Ascending)
+                                 WHERE(Order No.=FILTER(<>''));
+               OnPreDataItem=VAR
+                               recProdOrder@1101340000 : Record 5405;
+                             BEGIN
+                               //# Capacity Ledger Entry
+                               IF flgOutputClav = TRUE THEN BEGIN
+                                   CALCFIELDS("Nr. Subcontactor order"); //Calculate Subcontractor Order
+                                   IF (ProdOrder <> '') AND (DeleteDate <> 0D) AND (SubcontractorOrder <> '') THEN
+                                     BEGIN
+                                       QtyUndo_wk :=0;
+
+                                       //#1 - Reopen Production Order if Finished
+                                       IF recProdOrder.GET(recProdOrder.Status::Finished, ProdOrder) THEN
+                                          fnReopenClosedProdOrder(ProdOrder);
+
+                                       //#2 - Capacity Output Filters - Production Order\Posting Date
+                                       SETRANGE("Order No.", ProdOrder);                          //Prod Order Date
+                                       SETRANGE("Posting Date", DeleteDate);                      //Posting Date
+                                       SETRANGE("Nr. Subcontactor order",SubcontractorOrder);     //Subcontactor Order
+                                       i:= 1;
+
+                                       //#3 - Delete table 81 Batch
+                                       recOutputJournal.RESET;
+                                       recOutputJournal.VALIDATE("Journal Template Name", 'OUTPUT');
+                                       recOutputJournal.VALIDATE("Journal Batch Name", 'CORRCLAV');
+                                       recOutputJournal.DELETEALL;
+                                     END;
+                               END;
+                             END;
+
+               OnAfterGetRecord=VAR
+                                  recWhsReceiptHeader@1101340000 : Record 120;
+                                  recWhsReceiptLine@1101340001 : Record 121;
+                                BEGIN
+                                  IF flgOutputClav = TRUE THEN BEGIN
+                                      IF (ProdOrder <> '') AND (DeleteDate <> 0D) AND (SubcontractorOrder <> '') THEN
+                                        BEGIN
+                                          //# Calc QtyUndo
+                                          QtyUndo_wk :=QtyUndo_wk+Quantity;
+
+                                          //#3 - Undo OUTPUTS records in Item Journal Line
+                                          recOutputJournal.RESET;
+                                          recOutputJournal.VALIDATE("Journal Template Name", 'OUTPUT'); //#TEMPLATE FIX
+                                          recOutputJournal.VALIDATE("Journal Batch Name", 'CORRCLAV'); //# BATCH FIX
+                                          recOutputJournal.VALIDATE("Entry Type" , recOutputJournal."Entry Type"::Output);
+                                          recOutputJournal.VALIDATE("Posting Date", "Posting Date");
+                                          recOutputJournal.VALIDATE("Line No.", i*10000);
+                                          recOutputJournal.VALIDATE("Order No.", "Order No.");
+                                          recOutputJournal.VALIDATE("Item No.", "Item No.");
+                                          recOutputJournal.VALIDATE("Operation No.", "Operation No.");
+                                          recOutputJournal.VALIDATE("Location Code", '01');
+                                          recOutputJournal.VALIDATE("Bin Code", 'Z_RIC');
+                                          recOutputJournal.VALIDATE(Quantity, -1 * Quantity);
+                                          recOutputJournal.VALIDATE("Output Quantity", -1 * Quantity);
+                                          CALCFIELDS("Mov. Contabile Articolo");
+                                          recOutputJournal.VALIDATE("Applies-to Entry", "Mov. Contabile Articolo");
+                                          recOutputJournal."Reason Code" := 'CORRCLAV';  //# REASON CODE fir FIX
+
+                                          IF recOutputJournal.INSERT(TRUE) THEN //# Create UNDO Line
+                                              BEGIN
+                                               //# UNDO External No
+                                               "External Document No." := 'ANN-' + "External Document No." ; //ANN - (annullata)
+                                                MODIFY(TRUE);
+
+                                                //# UNDO - Receipt Header
+                                                IF recWhsReceiptHeader.GET("Document No.") THEN BEGIN
+                                                  recWhsReceiptHeader."Vendor Shipment No." :=  'ANN-' +  recWhsReceiptHeader."Vendor Shipment No.";
+                                                  recWhsReceiptHeader.MODIFY(FALSE);
+                                                END;
+
+                                                //# UNDO - Receipt Lines
+                                                recWhsReceiptLine.RESET;
+                                                recWhsReceiptLine.SETRANGE("Document No.",recWhsReceiptHeader."No.");
+                                                IF recWhsReceiptLine.FINDSET THEN
+                                                   REPEAT
+                                                      //# CLOSE Order Line
+                                                      recWhsReceiptLine."Qty. Rcd. Not Invoiced" := 0;
+                                                      recWhsReceiptLine."Quantity Invoiced":= recWhsReceiptLine.Quantity;
+                                                      recWhsReceiptLine."Qty. Invoiced (Base)" := recWhsReceiptLine."Quantity (Base)";
+                                                      recWhsReceiptLine."Riga Resa Non Fatturata" := TRUE;
+                                                      recWhsReceiptLine.MODIFY(FALSE);
+                                                   UNTIL recWhsReceiptLine.NEXT = 0;
+                                              END;
+                                          i := i+ 1;
+                                        END;
+                                  END;
+                                END;
+
+               OnPostDataItem=VAR
+                                ToTemplateName@1000000006 : Code[10];
+                                ToBatchName@1000000005 : Code[10];
+                                "// Post COMMIT"@1000000004 : Integer;
+                                recItemJournalLine2@1000000003 : Record 83;
+                                recItemJournalLineToPost@1000000002 : Record 83;
+                                txtMessaggio@1000000001 : Text[250];
+                                "// Post Commit End"@1000000000 : Integer;
+                              BEGIN
+                                //#4 - Automatic Post, POST CON COMMIT Ini
+                                IF flgOutputClav = TRUE THEN BEGIN
+                                    IF (ProdOrder <> '') AND (DeleteDate <> 0D) AND (SubcontractorOrder <> '') THEN BEGIN
+                                      ToTemplateName := 'OUTPUT' ;
+                                      ToBatchName   := 'CORRCLAV' ;
+
+                                      //# AUTOMATI POST TBL ITEM JOURNAL - Output Entries
+                                      recItemJournalLine2.RESET;
+                                      recItemJournalLine2.SETRANGE("Journal Template Name", ToTemplateName);     //JOURNAL Output
+                                      recItemJournalLine2.SETRANGE("Journal Batch Name", ToBatchName);           //BATCH Output
+
+                                      IF recItemJournalLine2.FINDSET THEN
+                                         REPEAT
+                                           recItemJournalLineToPost.RESET;
+                                           recItemJournalLineToPost.COPY(recItemJournalLine2);
+                                           recItemJournalLineToPost.SETRANGE(recItemJournalLineToPost."Line No.", recItemJournalLine2."Line No.");
+                                           COMMIT;
+
+                                           IF NOT CODEUNIT.RUN(CODEUNIT::"Item Jnl.-Post Line", recItemJournalLineToPost) THEN   //YOU CAN SELECT YOU POST CODEUNIT
+                                              BEGIN   //#ERRORS CHECK
+                                                  IF GUIALLOWED = FALSE THEN
+                                                     MESSAGE(FORMAT(GETLASTERRORTEXT,-250));
+
+                                                txtMessaggio:= (FORMAT(GETLASTERRORTEXT,-250));
+                                                IF txtMessaggio <> '' THEN
+                                                   txtMessaggio_Global := txtMessaggio;
+
+                                              END;
+
+                                              // # FORCE ABORT
+                                              //message(txtMessaggio) ;
+                                              //message(txtMessaggio_Global) ;
+
+                                              IF txtMessaggio_Global <> '' THEN ERROR('ERRORS in #STEP 1/3 - PROCEDURE ABORTED');
+
+                                         UNTIL recItemJournalLine2.NEXT =0;
+                                    END;
+
+                                    IF txtMessaggio_Global = '' THEN MESSAGE('#STEP 1/3 - UNDO OUTPUT COMPLETED');
+                                END;
+                                // Post COMMIT  END
+                              END;
+                               }
+
+    { 1101340001;;DataItem;ConsumptionEntry  ;
+               DataItemTable=Table32;
+               DataItemTableView=SORTING(Entry No.)
+                                 ORDER(Ascending)
+                                 WHERE(Entry Type=FILTER(Consumption));
+               OnPreDataItem=BEGIN
+                               //# Item Ledger Entry , UNDO Consumptions
+                               IF flgConsumption = TRUE THEN BEGIN
+                                   IF (ProdOrder <> '') AND (DeleteDate <> 0D) AND (SubcontractorOrder <> '') THEN
+                                     BEGIN
+                                       //#1 - Filter
+                                       SETRANGE("Order No.", ProdOrder);      //Prod Order Date
+                                       SETRANGE("Posting Date", DeleteDate);  //Posting Date
+                                       i:=1;
+
+                                       //#2 - Delete Consumption batch
+                                       recConsumptionJournal.RESET;
+                                       recConsumptionJournal.VALIDATE("Journal Template Name", 'CONSUMO'); //JOURNAL
+                                       recConsumptionJournal.VALIDATE("Journal Batch Name", 'CORRCLAV');  //BATCH
+                                       recConsumptionJournal.DELETEALL;
+                                     END;
+                               END;
+                             END;
+
+               OnAfterGetRecord=BEGIN
+                                  //#7 - Undo CONSUMPTIONS records in table Item Journal Lince
+                                  IF flgConsumption = TRUE THEN BEGIN
+                                    IF (ProdOrder <> '') AND (DeleteDate <> 0D) AND (SubcontractorOrder <> '') THEN
+                                      BEGIN
+                                        recConsumptionJournal.RESET;
+                                        recConsumptionJournal.VALIDATE("Journal Template Name", 'CONSUMO');
+                                        recConsumptionJournal.VALIDATE("Journal Batch Name", 'CORRCLAV');
+                                        recConsumptionJournal.VALIDATE("Posting Date", "Posting Date");
+                                        recConsumptionJournal.VALIDATE("Entry Type" , recConsumptionJournal."Entry Type"::Consumption);
+                                        recConsumptionJournal.VALIDATE("Line No.", i*10000);
+                                        recConsumptionJournal."Phys. Inventory"  := FALSE;
+                                        recConsumptionJournal.VALIDATE("Item No.", "Item No.");
+                                        recConsumptionJournal.VALIDATE("Order No.", "Order No.");
+                                        recConsumptionJournal.VALIDATE("Order Line No.", "Order Line No.");
+                                        recConsumptionJournal.VALIDATE("Prod. Order Comp. Line No.");
+                                        recConsumptionJournal.VALIDATE("Routing Reference No.");
+                                        recConsumptionJournal.VALIDATE("Prod. Order No.", "Prod. Order No.");
+                                        recConsumptionJournal.VALIDATE("Prod. Order Line No.","Prod. Order Line No.");
+                                        recConsumptionJournal.VALIDATE("Document No.", "Document No.");
+                                        recConsumptionJournal.VALIDATE("Location Code", "Location Code");
+                                        recConsumptionJournal.VALIDATE(Quantity, Quantity);
+                                        recConsumptionJournal."Reason Code" := 'CORRCLAV';
+
+                                        recConsumptionJournal.INSERT(TRUE);
+                                        i := i+ 1;
+                                       END;
+                                  END;
+                                END;
+
+               OnPostDataItem=VAR
+                                ToTemplateName@1000000006 : Code[10];
+                                ToBatchName@1000000005 : Code[10];
+                                "// Post COMMIT"@1000000004 : Integer;
+                                recItemJournalLine2@1000000003 : Record 83;
+                                recItemJournalLineToPost@1000000002 : Record 83;
+                                txtMessaggio@1000000001 : Text[250];
+                                "// Post Commit End"@1000000000 : Integer;
+                              BEGIN
+                                //#6 - Automatic Post , Post CONSUMPTIONS, //  POST CON COMMIT Ini
+
+                                IF flgConsumption = TRUE THEN BEGIN
+                                  ToTemplateName := 'CONSUMO' ;
+                                  ToBatchName   := 'CORRCLAV' ;
+                                  //AUTOMATIC POST TBL 83 "ITEM JOURNAL" - Consumo
+                                  recItemJournalLine2.RESET;
+                                  recItemJournalLine2.SETRANGE("Journal Template Name", ToTemplateName);     //JORNALE Consumption
+                                  recItemJournalLine2.SETRANGE("Journal Batch Name", ToBatchName);           //BATCH Consumption
+
+                                  IF recItemJournalLine2.FINDSET THEN
+                                     REPEAT
+                                       recItemJournalLineToPost.RESET;
+                                       recItemJournalLineToPost.COPY(recItemJournalLine2);
+                                       recItemJournalLineToPost.SETRANGE(recItemJournalLineToPost."Line No.", recItemJournalLine2."Line No.");
+                                       COMMIT;
+
+                                       IF NOT CODEUNIT.RUN(CODEUNIT::"Item Jnl.-Post Line", recItemJournalLineToPost) THEN   //YOU CAN SELECT YOU POST CODEUNIT
+                                          BEGIN   //# ERROR CHECK
+                                             IF GUIALLOWED = FALSE THEN
+                                                MESSAGE(FORMAT(GETLASTERRORTEXT,-250));
+
+                                           txtMessaggio:= (FORMAT(GETLASTERRORTEXT,-250));
+                                           IF txtMessaggio <> '' THEN
+                                              txtMessaggio_Global := txtMessaggio;
+
+                                          END;
+                                     UNTIL recItemJournalLine2.NEXT =0;
+
+                                  IF txtMessaggio_Global = '' THEN MESSAGE('#STEP 2/3 - UNDO CONSUMPTIONS COMPLETED');
+                                END;
+                              END;
+                               }
+
+    { 1101340002;;DataItem;Purchase Line     ;
+               DataItemTable=Table39;
+               DataItemTableView=SORTING(Document Type,Document No.,Line No.)
+                                 ORDER(Ascending);
+               OnPreDataItem=BEGIN
+                               IF flgOutputClav = TRUE THEN BEGIN
+                                 //# Purchase Line > Subcontractor YES
+                                 IF (ProdOrder <> '') AND (DeleteDate <> 0D) AND (SubcontractorOrder <> '') THEN
+                                   BEGIN
+                                     SETRANGE("Prod. Order No.", ProdOrder);           //Prod Order No.
+                                     SETRANGE("Document No.", SubcontractorOrder);     //Subcontactor Order No.
+                                     i:=1;
+                                   END;
+                               END;
+                             END;
+
+               OnAfterGetRecord=BEGIN
+                                  //# Update Subcontractor Lines
+                                  IF flgOutputClav = TRUE THEN BEGIN
+                                      IF (ProdOrder <> '') AND (DeleteDate <> 0D) AND (SubcontractorOrder <> '') THEN
+                                        BEGIN
+                                          IF QtyUndo_wk > 0 THEN
+                                           BEGIN
+                                             //# RESET FIELDS VALUES
+                                             VALIDATE("Quantity Received", "Quantity Received" - QtyUndo_wk);
+                                             VALIDATE("Qty. Received (Base)" , "Qty. Received (Base)" - QtyUndo_wk) ;
+
+                                             //# RECALC OUTSTANDING QTY
+                                             VALIDATE("Outstanding Quantity" , "Outstanding Quantity" + QtyUndo_wk);
+                                             VALIDATE("Outstanding Qty. (Base)" , "Outstanding Qty. (Base)" + QtyUndo_wk);
+                                             VALIDATE("Qty. to Receive", "Qty. to Receive" + QtyUndo_wk) ;
+                                             VALIDATE("Qty. to Receive (Base)", "Qty. to Receive (Base)" + QtyUndo_wk) ;
+
+                                             //# Undo Prices
+                                             Price_wk := ("Unit Price (LCY)"* "VAT %"/100 ) + "Unit Price (LCY)" ;
+                                             VALIDATE("Amt. Rcd. Not Invoiced",  "Amt. Rcd. Not Invoiced"  - QtyUndo_wk * Price_wk);
+                                             VALIDATE("Amt. Rcd. Not Invoiced (LCY)" , "Amt. Rcd. Not Invoiced (LCY)" - QtyUndo_wk * Price_wk) ;
+                                             VALIDATE("A. Rcd. Not Inv. Ex. VAT (LCY)" , "A. Rcd. Not Inv. Ex. VAT (LCY)" - QtyUndo_wk * "Unit Price (LCY)");
+                                             VALIDATE("Qty. Rcd. Not Invoiced (Base)" , "Qty. Rcd. Not Invoiced (Base)"  - QtyUndo_wk) ;
+                                             VALIDATE("Qty. Rcd. Not Invoiced" , "Qty. Rcd. Not Invoiced" - QtyUndo_wk);
+
+                                             "Completely Received" := FALSE;
+                                             MODIFY(TRUE);
+                                           END;
+                                       END;
+                                   END;
+                                END;
+
+               OnPostDataItem=VAR
+                                text01@1000000000 : TextConst 'ITA="Mancata Registrazione Batch -- CORRCLAV   "';
+                                recODC@1101340000 : Record 38;
+                              BEGIN
+                                IF flgOutputClav = TRUE THEN BEGIN
+                                    //# Reopen-Release Order
+                                    recODC.RESET;
+                                    IF recODC.GET(recODC."Document Type"::Order, "Document No.") THEN
+                                       BEGIN
+                                        IF recODC.Status = recODC.Status::Released THEN
+                                           recODC.VALIDATE(Status, recODC.Status::Open);     //Reopen Order to crete new Warehouse Receipt
+
+                                        MODIFY(TRUE);
+                                       END;
+
+                                    //#IF ERRORS THEN MESSAGE TO USER
+                                    IF (txtMessaggio_Global) <> '' THEN
+                                       MESSAGE(txtMessaggio_Global);
+
+                                    IF txtMessaggio_Global = '' THEN MESSAGE('#STEP 3/3 - UNDO SUBCONTRACTING ORDER COMPLETE');
+                                END;
+                              END;
+                               }
+
+  }
+  REQUESTPAGE
+  {
+    PROPERTIES
+    {
+      OnOpenPage=BEGIN
+
+                   flgOutputClav  := TRUE;
+                   flgConsumption := TRUE;
+
+                   mStart := 'Attention!... check quantities in warehouse before starting';
+                 END;
+
+    }
+    CONTROLS
+    {
+      { 1101340000;;Container;
+                  ContainerType=ContentArea }
+
+      { 1101340001;1;Group  ;
+                  GroupType=Group }
+
+      { 1101340007;2;Field  ;
+                  SourceExpr=mStart;
+                  Enabled=FALSE;
+                  Editable=FALSE;
+                  MultiLine=No;
+                  Style=StrongAccent;
+                  StyleExpr=TRUE }
+
+      { 1101340008;2;Field  ;
+                  Editable=FALSE;
+                  MultiLine=Yes }
+
+      { 1101340002;2;Field  ;
+                  CaptionML=[ENU=Production Order;
+                             ITA=Ordine di Produzione];
+                  SourceExpr=ProdOrder;
+                  TableRelation="Production Order".No. }
+
+      { 1101340003;2;Field  ;
+                  CaptionML=[ENU=Output\Consumption Date;
+                             ITA=Data Versamento/Consumo];
+                  SourceExpr=DeleteDate }
+
+      { 1101340004;2;Field  ;
+                  CaptionML=[ENU=Subcontractor Order;
+                             ITA=Ordine di Conto Lavorazione];
+                  SourceExpr=SubcontractorOrder;
+                  TableRelation="Purchase Header".No. WHERE (Subcontracting Order=FILTER(Yes)) }
+
+      { 1101340005;2;Field  ;
+                  CaptionML=[ENU=Undo Output and Fix Subc. Order;
+                             ITA=Storna Output e Sistemazione ODC];
+                  SourceExpr=flgOutputClav }
+
+      { 1101340006;2;Field  ;
+                  CaptionML=[ENU=Undo Consumptions;
+                             ITA=Storno Consumi];
+                  SourceExpr=flgConsumption }
+
+    }
+  }
+  LABELS
+  {
+  }
+  CODE
+  {
+    VAR
+      ProdOrder@1101340000 : Code[20];
+      DeleteDate@1101340001 : Date;
+      recItemLedgerEntry@1101340002 : Record 32;
+      recProdOrderLine@1101340003 : Record 5406;
+      recProdOrderComponent@1101340004 : Record 5407;
+      recOutputJournal@1101340005 : Record 83;
+      recConsumptionJournal@1101340006 : Record 83;
+      cText001@1101340007 : TextConst 'ITA=Production Order %1 is not finished!';
+      i@1101340008 : Integer;
+      cText002@1101340009 : TextConst 'ITA=Operation Completed.';
+      recPurchaseLine@1101340010 : Record 39;
+      QtyUndo_wk@1101340011 : Decimal;
+      Price_wk@1101340012 : Decimal;
+      txtMessaggio_Global@1000000000 : Text[255];
+      SubcontractorOrder@1101340013 : Code[20];
+      flgConsumption@1101340015 : Boolean;
+      flgOutputClav@1101340014 : Boolean;
+      mStart@1101340016 : Text[100];
+      cText003@1101340017 : TextConst 'ENU=Confirm Sub. Order UNDO ?;ITA=Confermi lo storno del Conto Lavorazione ?';
+      cText004@1101340018 : TextConst 'ENU=Aborted.;ITA=Operazione annullata.';
+      cText005@1101340019 : TextConst 'ENU=Insert Prod. Order No.;ITA=Inserire Ordine di Produzione';
+      cText006@1101340020 : TextConst 'ENU=Insert UNDO Date;ITA=Inserire data cancellazione movimenti';
+      cText007@1101340021 : TextConst 'ENU=Insert Purch. Order No. to Fix;ITA=Inserire ordine conto lavorazione da sistemare';
+
+    PROCEDURE fnReopenClosedProdOrder@1101340034(parProdOrder@1101340000 : Code[20]);
+    VAR
+      recProdOrder@1101340001 : Record 5405;
+      recProdOrderLine@1101340002 : Record 5406;
+      recProdOrderRoutingLine@1101340003 : Record 5409;
+      recProdOrderComp@1101340004 : Record 5407;
+      recProdOrderCommentLine@1101340005 : Record 5414;
+      recProdOrderRtngCommentLine@1101340006 : Record 5415;
+      recProdOrderBOMCommentLine@1101340007 : Record 5416;
+    BEGIN
+      // #0 - REOPEN Production Order Closed - Standard Procedure to reopen an order
+      IF parProdOrder <> '' THEN BEGIN
+          recProdOrder.RESET;
+          recProdOrder.SETRANGE("No.", parProdOrder);
+          recProdOrder.SETRANGE(Status, recProdOrder.Status::Finished);    //Finisched
+
+          IF recProdOrder.FINDFIRST THEN BEGIN
+            recProdOrder.RENAME(recProdOrder.Status::Released, parProdOrder); // Change to released
+
+            recProdOrderLine.RESET;
+            recProdOrderLine.SETRANGE(recProdOrderLine."Prod. Order No.", parProdOrder);
+            IF recProdOrderLine.FINDFIRST THEN
+              REPEAT
+                  recProdOrderLine.RENAME(recProdOrder.Status::Released, recProdOrderLine."Prod. Order No.", recProdOrderLine."Line No.");
+              UNTIL recProdOrderLine.NEXT = 0;
+
+            recProdOrderRoutingLine.RESET;
+            recProdOrderRoutingLine.SETRANGE("Prod. Order No.", parProdOrder);
+            IF recProdOrderRoutingLine.FINDFIRST THEN
+              REPEAT
+                recProdOrderRoutingLine.RENAME(recProdOrder.Status::Released,
+                                               recProdOrderRoutingLine."Prod. Order No.", recProdOrderRoutingLine."Routing Reference No.",
+                                               recProdOrderRoutingLine."Routing No.", recProdOrderRoutingLine."Operation No.");
+              UNTIL recProdOrderRoutingLine.NEXT = 0;
+
+            recProdOrderComp.RESET;
+            recProdOrderComp.SETRANGE("Prod. Order No.", parProdOrder);
+            IF recProdOrderComp.FINDFIRST THEN
+              REPEAT
+                recProdOrderComp.RENAME(recProdOrder.Status::Released, recProdOrderComp."Prod. Order No.",
+                            recProdOrderComp."Prod. Order Line No.", recProdOrderComp."Line No.");
+              UNTIL recProdOrderComp.NEXT = 0;
+
+
+            recProdOrderCommentLine.RESET;
+            recProdOrderCommentLine.SETRANGE("Prod. Order No.", parProdOrder);
+            IF recProdOrderCommentLine.FINDFIRST THEN
+              REPEAT
+                recProdOrderCommentLine.RENAME(recProdOrderCommentLine.Status::Released,
+                                               recProdOrderCommentLine."Prod. Order No.", recProdOrderCommentLine."Line No.");
+              UNTIL recProdOrderCommentLine.NEXT = 0;
+
+            recProdOrderRtngCommentLine.RESET;
+            recProdOrderRtngCommentLine.SETRANGE("Prod. Order No.", parProdOrder);
+            IF recProdOrderRtngCommentLine.FINDFIRST THEN
+              REPEAT
+                recProdOrderRtngCommentLine.RENAME(recProdOrderRtngCommentLine.Status::Released,
+                                                   recProdOrderRtngCommentLine."Prod. Order No.",
+                                                   recProdOrderRtngCommentLine."Routing Reference No.",
+                                                   recProdOrderRtngCommentLine."Routing No.", recProdOrderRtngCommentLine."Operation No.",
+                                                   recProdOrderRtngCommentLine."Line No.");
+              UNTIL recProdOrderRtngCommentLine.NEXT = 0;
+
+            recProdOrderBOMCommentLine.RESET;
+            recProdOrderBOMCommentLine.SETRANGE("Prod. Order No.", parProdOrder);
+            IF recProdOrderBOMCommentLine.FINDFIRST THEN
+              REPEAT
+                recProdOrderBOMCommentLine.RENAME(recProdOrderBOMCommentLine.Status::Released,
+                                               recProdOrderBOMCommentLine."Prod. Order No.", recProdOrderBOMCommentLine."Prod. Order Line No.",
+                                               recProdOrderBOMCommentLine."Prod. Order BOM Line No.", recProdOrderBOMCommentLine."Line No.");
+              UNTIL recProdOrderBOMCommentLine.NEXT = 0;
+
+          END ELSE
+            ERROR(cText001, parProdOrder);
+          COMMIT;
+      END;
+    END;
+
+    BEGIN
+    {
+      // RS, UNDO Subcontractor Outputs, UNDO Consumptions and Fix Suncontractor Order quantities
+
+      // UNDO Subcontractor Output, UNDO Consumptions and Fix Suncontractor Order quantities - Running Sequence - START
+      // #-STEPS
+      #1 - Reopen Production Order if Finished
+      #2 - Capacity Output Filters - Production Order\Posting Date
+      #3 - Undo OUTPUTS records in Item Journal Line -- Batch 'OUTPUT', Reason Code 'CORRCLAV'
+      #4 - Automatic OUTPUT Post
+      #5 - Undo CONSUMPTIONS records in table Item Journal Lince -- Batch 'CONSUMO', Reason Code 'CORRCLAV'
+      #6 - Automatic CONSUMPTION Post
+      #7 - Undo Subcontractot Order (italian localization)
+      #8 - Reopen Subcontractor Purchase Order
+      #9 - Release Subcontractor Purchase Order > Creation of New Warehouse Receip to receive the reopened Order
+      ## - USE a POST COMMIT CODEUNIT
+      // #-STEPS
+      // UNDO Subcontractor Output e Consumptions - Sequence END
+
+
+      // CAPACITY FILTERS
+      SETRANGE("Order No.", ProdOrder);                          // Prod Order Date
+      SETRANGE("Posting Date", DeleteDate);                      // Posting Date
+      SETRANGE("Nr. Subcontactor order", SubcontractorOrder);    // Subcontactor Order
+    }
+    END.
+  }
+  RDLDATA
+  {
+  }
+}
+

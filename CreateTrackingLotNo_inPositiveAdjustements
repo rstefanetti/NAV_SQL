@@ -1,0 +1,92 @@
+TRACKING LOT NO. in POSITIVE ADJUSTEMENTS
+
+{
+//TABLE "IMPORT LOT ITEM INVENTORY"
+//FIELDS
+//            1             Lot No.                Code     20           
+//            2             Item No.             Code     20           
+//            3             Location Code   Code     20           
+//            4             Bin Code             Code     20           
+//            5             Qty                        Decimal
+//
+}                              
+
+IF NOT CONFIRM(cText001) THEN   //Start Import
+  EXIT;   
+
+Mov := 10000;
+SSCCInventoryABSERRATE.RESET;
+
+IF SSCCInventoryABSERRATE.FINDSET THEN
+  REPEAT
+    BEGIN
+
+    //TOLGO IL BLOCCO DELL'ARTICOLO - UNBLOCK BLOCKED ITEM
+    IF Item.GET(SSCCInventoryABSERRATE."Item No.") THEN BEGIN
+     IF Item.Blocked = TRUE THEN BEGIN
+       Item.Blocked := FALSE;
+       Item.MODIFY;
+     END; 
+     
+    Mov := Mov + 10000;
+    ItemJournalLine.RESET;
+    ItemJournalLine."Journal Template Name" := "Journal Template Name";
+    ItemJournalLine."Journal Batch Name" := "Journal Batch Name";
+    ItemJournalLine."Line No." := Mov;
+    ItemJournalLine.VALIDATE("Item No.", SSCCInventoryABSERRATE."Item No.");  
+    ItemJournalLine."Posting Date" := WORKDATE;
+    ItemJournalLine.VALIDATE("Posting Date"); 
+    ItemJournalLine."Entry Type" :=  ItemJournalLine."Entry Type"::"Positive Adjmt." ;  //positive
+    ItemJournalLine."Source Code" := 'REG-INVEN';  //SOURCE CODE
+    ItemJournalLine."Location Code" := SSCCInventoryABSERRATE."Location Code";
+    ItemJournalLine."Bin Code" := SSCCInventoryABSERRATE."Bin Code" ;     
+    ItemJournalLine."Document No." := SSCCInventoryABSERRATE."Lot No.";
+    ItemJournalLine.Quantity := ABS(SSCCInventoryABSERRATE.Qty);   //positive quantity
+    ItemJournalLine.VALIDATE(Quantity);
+    ItemJournalLine."External Document No." := SSCCInventoryABSERRATE."Lot No.";
+
+     //INSERISCO IL LOTTO  - INSERT AND TRACK LOT NO.
+     MovRes :=0;
+     ReservationEntry2.RESET;
+     IF ReservationEntry2.FIND('+') THEN
+       MovRes := ReservationEntry2."Entry No." + 1;
+
+     ReservationEntry."Entry No." := MovRes;
+     ReservationEntry."Item No." :=ItemJournalLine."Item No.";
+     ReservationEntry."Location Code" := ItemJournalLine."Location Code";
+     ReservationEntry."Quantity (Base)" := ItemJournalLine.Quantity;
+     ReservationEntry."Reservation Status" := ReservationEntry."Reservation Status"::Prospect;
+     ReservationEntry."Creation Date" := ItemJournalLine."Posting Date";
+     ReservationEntry."Source Type" := 83;
+     ReservationEntry."Source ID" := "Journal Template Name";
+     ReservationEntry."Source Batch Name" := "Journal Batch Name";
+     ReservationEntry."Source Ref. No." := ItemJournalLine."Line No."; 
+     ReservationEntry."Source Subtype" := 2;    //POSITIVE ADJ.
+     ReservationEntry.Quantity := ItemJournalLine.Quantity;
+     ReservationEntry."Qty. to Handle (Base)" :=  ItemJournalLine.Quantity;
+     ReservationEntry."Qty. to Invoice (Base)" :=  ItemJournalLine.Quantity;
+     ReservationEntry."Quantity (Base)" :=  ItemJournalLine.Quantity; 
+     ReservationEntry."Qty. per Unit of Measure" := 1;    
+     ReservationEntry."Lot No." := SSCCInventoryABSERRATE."Lot No.";
+     ReservationEntry."Item Tracking" := ReservationEntry."Item Tracking"::"Lot No.";       
+     ReservationEntry.INSERT;    // INSERT RESERVATION ENTRY (LOT NO.)
+
+
+    //CREO LE INFOMAIZONI LOTTO SE NON ESISTENTI - INSERT INFO LOT CARD
+    LotNoInformation.RESET;
+    LotNoInformation.SETCURRENTKEY("Item No.","Variant Code","Lot No.");
+    LotNoInformation.SETRANGE("Item No.",SSCCInventoryABSERRATE."Item No.");
+    LotNoInformation.SETRANGE("Lot No.",SSCCInventoryABSERRATE."Lot No.");
+
+    IF NOT LotNoInformation.FINDFIRST THEN BEGIN  
+      LotNoInformation.VALIDATE("Item No.",SSCCInventoryABSERRATE."Item No.");
+      LotNoInformation."Lot No." := SSCCInventoryABSERRATE."Lot No.";
+      LotNoInformation."Barcode Scatola" := SSCCInventoryABSERRATE."Lot No.";
+      LotNoInformation.INSERT(TRUE);    
+    END;   
+
+    ItemJournalLine.INSERT; //INSERT ITEM JOURNAL            
+    END;
+  
+   END;
+  UNTIL SSCCInventoryABSERRATE.NEXT =0;

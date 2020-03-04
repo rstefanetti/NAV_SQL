@@ -1,0 +1,81 @@
+OBJECT Report 50001 Update Flexibility to None
+{
+  OBJECT-PROPERTIES
+  {
+    Date=13/02/17;
+    Time=16.04.17;
+    Modified=Yes;
+    Version List=SEDP;
+  }
+  PROPERTIES
+  {
+    ProcessingOnly=Yes;
+  }
+  DATASET
+  {
+    { 1101340000;;DataItem;                  ;
+               DataItemTable=Table5406;
+               DataItemTableView=SORTING(Status,Prod. Order No.,Line No.)
+                                 ORDER(Ascending)
+                                 WHERE(Status=FILTER(<>Finished),
+                                       Planning Flexibility=FILTER(Unlimited));
+               OnAfterGetRecord=BEGIN
+                                  "Planning Flexibility" := "Planning Flexibility"::None;
+                                  MODIFY(FALSE);
+                                END;
+                                 }
+
+    { 1101340001;0;DataItem;                 ;
+               DataItemTable=Table39;
+               DataItemTableView=SORTING(Document Type,Document No.,Line No.)
+                                 ORDER(Ascending)
+                                 WHERE(Document Type=FILTER(Order),
+                                       Planning Flexibility=FILTER(Unlimited));
+               OnAfterGetRecord=BEGIN
+                                  "Planning Flexibility" := "Planning Flexibility"::None;
+                                  MODIFY(FALSE);
+                                END;
+                                 }
+
+    { 1101340002;;DataItem;                  ;
+               DataItemTable=Table337;
+               DataItemTableView=WHERE(Planning Flexibility=FILTER(Unlimited));
+               OnAfterGetRecord=BEGIN
+                                  "Planning Flexibility" := "Planning Flexibility"::None;
+                                  MODIFY(FALSE);
+                                END;
+                                 }
+
+    { 1101340003;0;DataItem;                 ;
+               DataItemTable=Table5741;
+               DataItemTableView=WHERE(Planning Flexibility=FILTER(Unlimited));
+               OnAfterGetRecord=BEGIN
+                                  "Planning Flexibility" := "Planning Flexibility"::None;
+                                  MODIFY(FALSE);
+                                END;
+                                 }
+
+  }
+  REQUESTPAGE
+  {
+    PROPERTIES
+    {
+    }
+    CONTROLS
+    {
+    }
+  }
+  LABELS
+  {
+  }
+  CODE
+  {
+
+    BEGIN
+    END.
+  }
+  RDLDATA
+  {
+  }
+}
+

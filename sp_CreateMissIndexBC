@@ -1,0 +1,69 @@
+-- sp_CreateMissIndexBC
+-- =============================================================
+-- Author:		RS
+-- Create date: 20/07/2023
+-- Description:	Create SQL Indexes from BC Missing Indexes Logic
+-- =============================================================
+----------------------------------------------------------------
+
+ALTER PROCEDURE [dbo].[sp_CreateMissIndexBC]	
+	@BCEnv varchar(100)
+	
+AS
+	BEGIN
+		SET NOCOUNT ON;
+
+		-- Variables
+		DECLARE @LenEnv as integer
+		SET @LenEnv = LEN(@BCEnv)	
+		DECLARE @CreateIndex VARCHAR(max) -- Index SQL String		
+
+		-- IndexCheck for BCEnv - list
+		select * from sys.dm_db_missing_index_details where left(statement, @LenEnv) = @BCEnv	
+		
+		SELECT
+		  'CREATE INDEX missing_index_BCEnv_' + CONVERT (varchar, mig.index_group_handle) + '_' + CONVERT (varchar, mid.index_handle) + ' ON ' + mid.statement + ' (' + ISNULL (mid.equality_columns, '') + CASE
+			WHEN mid.equality_columns IS NOT NULL
+			AND mid.inequality_columns IS NOT NULL THEN ','
+			ELSE ''
+		  END + ISNULL (mid.inequality_columns, '') + ')' + ISNULL (' INCLUDE (' + mid.included_columns + ')', '') AS create_missing_index_statement
+		FROM sys.dm_db_missing_index_groups mig
+			INNER JOIN sys.dm_db_missing_index_group_stats migs ON migs.group_handle = mig.index_group_handle
+			INNER JOIN sys.dm_db_missing_index_details mid ON mig.index_handle = mid.index_handle
+		WHERE CONVERT (decimal (28, 1),migs.avg_total_user_cost * migs.avg_user_impact * (migs.user_seeks + migs.user_scans)) > 0
+		AND left(statement, @LenEnv) = @BCEnv --Filter by BCEnv
+		
+		-- Create Index from Cursor (EXEC)		
+		DECLARE Index_cursor CURSOR FOR 
+		SELECT
+		  'CREATE INDEX missing_index_BCEnv_' + CONVERT (varchar, mig.index_group_handle) + '_' + CONVERT (varchar, mid.index_handle) + ' ON ' + mid.statement + ' (' + ISNULL (mid.equality_columns, '') + CASE
+			WHEN mid.equality_columns IS NOT NULL
+			AND mid.inequality_columns IS NOT NULL THEN ','
+			ELSE ''
+		  END + ISNULL (mid.inequality_columns, '') + ')' + ISNULL (' INCLUDE (' + mid.included_columns + ')', '') AS create_missing_index_statement
+		FROM sys.dm_db_missing_index_groups mig
+			INNER JOIN sys.dm_db_missing_index_group_stats migs ON migs.group_handle = mig.index_group_handle
+			INNER JOIN sys.dm_db_missing_index_details mid ON mig.index_handle = mid.index_handle
+		WHERE CONVERT (decimal (28, 1),migs.avg_total_user_cost * migs.avg_user_impact * (migs.user_seeks + migs.user_scans)) > 0
+		AND left(statement, @LenEnv) = @BCEnv --Filter by BCEnv
+
+		-- Open Cursor
+		OPEN Index_cursor  
+		FETCH NEXT FROM Index_cursor INTO @CreateIndex 
+
+		WHILE @@FETCH_STATUS = 0  
+		BEGIN  			 
+			  -- Print Index
+			  PRINT @CreateIndex 
+			  -- Create SQL Index
+			  EXECUTE (@CreateIndex)
+			  FETCH NEXT FROM Index_cursor INTO @CreateIndex 
+		END 
+
+		-- Close Cursor
+		CLOSE Index_cursor  
+		DEALLOCATE Index_cursor 					
+							   		 
+		SET NOCOUNT OFF;
+				
+	END
